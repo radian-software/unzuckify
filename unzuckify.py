@@ -21,6 +21,35 @@ def log(msg):
         print(msg, file=sys.stderr)
 
 
+def get_cookies_path():
+    return xdg.xdg_cache_home() / "unzuckify" / "cookies.json"
+
+
+def load_cookies(session):
+    try:
+        with open(get_cookies_path()) as f:
+            session.cookies.clear()
+            session.cookies.update(json.load(f))
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def save_cookies(session):
+    path = get_cookies_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(dict(session.cookies), f)
+
+
+def clear_cookies(session):
+    session.cookies.clear()
+    try:
+        get_cookies_path().unlink()
+    except FileNotFoundError:
+        pass
+
+
 def get_unauthenticated_page_data(session):
     url = "https://www.messenger.com"
     log(f"[http] GET {url} (unauthenticated)")
@@ -59,13 +88,11 @@ def get_chat_page_data(session):
     log(f"[http] GET {url}")
     redirect = session.get(
         url,
-        headers={
-            "Sec-Fetch-Site": "same-origin",
-        },
         allow_redirects=False,
     )
     redirect.raise_for_status()
-    assert redirect.status_code in (301, 302), redirect.status
+    if redirect.status_code not in (301, 302):
+        return None
     url = redirect.headers["Location"]
     log(f"[http] GET {url}")
     page = session.get(url)
@@ -225,11 +252,23 @@ def get_inbox_data(inbox_js):
 
 def do_main(credentials):
     with requests.session() as session:
-        unauthenticated_page_data = get_unauthenticated_page_data(session)
-        log(json.dumps(unauthenticated_page_data, indent=2))
-        do_login(session, unauthenticated_page_data, credentials)
-        log(json.dumps(dict(session.cookies), indent=2))
-        chat_page_data = get_chat_page_data(session)
+        chat_page_data = None
+        if load_cookies(session):
+            log(f"[cookie] READ {get_cookies_path()}")
+            log(json.dumps(dict(session.cookies), indent=2))
+            chat_page_data = get_chat_page_data(session)
+            if not chat_page_data:
+                log(f"[cookie] CLEAR due to failed auth")
+                clear_cookies(session)
+        if not chat_page_data:
+            unauthenticated_page_data = get_unauthenticated_page_data(session)
+            log(json.dumps(unauthenticated_page_data, indent=2))
+            do_login(session, unauthenticated_page_data, credentials)
+            log(json.dumps(dict(session.cookies), indent=2))
+            save_cookies(session)
+            log(f"[cookie] WRITE {get_cookies_path()}")
+            chat_page_data = get_chat_page_data(session)
+            assert chat_page_data, "auth failed"
         log(
             json.dumps(
                 chat_page_data,
