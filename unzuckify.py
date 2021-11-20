@@ -250,7 +250,7 @@ def get_inbox_data(inbox_js):
     }
 
 
-def do_main(credentials):
+def do_main(args):
     with requests.session() as session:
         chat_page_data = None
         if load_cookies(session):
@@ -263,7 +263,14 @@ def do_main(credentials):
         if not chat_page_data:
             unauthenticated_page_data = get_unauthenticated_page_data(session)
             log(json.dumps(unauthenticated_page_data, indent=2))
-            do_login(session, unauthenticated_page_data, credentials)
+            do_login(
+                session,
+                unauthenticated_page_data,
+                {
+                    "email": args.email,
+                    "password": args.password,
+                },
+            )
             log(json.dumps(dict(session.cookies), indent=2))
             save_cookies(session)
             log(f"[cookie] WRITE {get_cookies_path()}")
@@ -277,20 +284,30 @@ def do_main(credentials):
         )
         script_data = get_script_data(session, chat_page_data)
         log(json.dumps(script_data, indent=2))
-        inbox_js = get_inbox_js(session, chat_page_data, script_data)
-        inbox_data = get_inbox_data(inbox_js)
-        print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
+        if args.cmd == "inbox":
+            inbox_js = get_inbox_js(session, chat_page_data, script_data)
+            inbox_data = get_inbox_data(inbox_js)
+            print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
+        elif args.cmd == "send":
+            print("send")
+            pass
+        else:
+            assert False, args.cmd
 
 
 def main():
     parser = argparse.ArgumentParser("unzuckify")
-    parser.add_argument("email")
-    parser.add_argument("password")
+    parser.add_argument("-u", "--email")
+    parser.add_argument("-p", "--password")
     parser.add_argument("-v", "--verbose", action="store_true")
+    subparsers = parser.add_subparsers(dest="cmd")
+    cmd_inbox = subparsers.add_parser("inbox")
+    cmd_send = subparsers.add_parser("send")
+    cmd_read = subparsers.add_parser("read")
     args = parser.parse_args()
     if args.verbose:
         global_config["verbose"] = True
-    do_main({"email": args.email, "password": args.password})
+    do_main(args)
 
 
 if __name__ == "__main__":
