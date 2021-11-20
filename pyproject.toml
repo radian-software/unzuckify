@@ -5,9 +5,10 @@ description = "Helps remove Daddy Zuck from my life"
 authors = ["Radon Rosborough <radon.neon@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 xdg = "^5.1.1"
 requests = "^2.26.0"
+esprima = "^4.0.1"
 
 [tool.poetry.dev-dependencies]
 
