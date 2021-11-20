@@ -13,8 +13,18 @@ import requests
 import xdg
 
 
+global_config = {"verbose": False}
+
+
+def log(msg):
+    if global_config["verbose"]:
+        print(msg, file=sys.stderr)
+
+
 def get_unauthenticated_page_data(session):
-    page = session.get("https://www.messenger.com", allow_redirects=False)
+    url = "https://www.messenger.com"
+    log(f"[http] GET {url} (unauthenticated)")
+    page = session.get(url, allow_redirects=False)
     page.raise_for_status()
     return {
         "datr": re.search(r'"_js_datr",\s*"([^"]+)"', page.text).group(1),
@@ -26,8 +36,10 @@ def get_unauthenticated_page_data(session):
 
 
 def do_login(session, unauthenticated_page_data, credentials):
+    url = "https://www.messenger.com/login/password/"
+    log(f"[http] POST {url}")
     resp = session.post(
-        "https://www.messenger.com/login/password/",
+        url,
         cookies={"datr": unauthenticated_page_data["datr"]},
         data={
             "lsd": unauthenticated_page_data["lsd"],
@@ -43,8 +55,10 @@ def do_login(session, unauthenticated_page_data, credentials):
 
 
 def get_chat_page_data(session):
+    url = "https://www.messenger.com"
+    log(f"[http] GET {url}")
     redirect = session.get(
-        "https://www.messenger.com",
+        url,
         headers={
             "Sec-Fetch-Site": "same-origin",
         },
@@ -52,7 +66,9 @@ def get_chat_page_data(session):
     )
     redirect.raise_for_status()
     assert redirect.status_code in (301, 302), redirect.status
-    page = session.get(redirect.headers["Location"])
+    url = redirect.headers["Location"]
+    log(f"[http] GET {url}")
+    page = session.get(url)
     page.raise_for_status()
     return {
         "device_id": re.search(r'"deviceId"\s*:\s*"([^"]+)"', page.text).group(1),
@@ -60,17 +76,23 @@ def get_chat_page_data(session):
             r'"schemaVersion"\s*:\s*"([^"]+)"', page.text
         ).group(1),
         "dtsg": re.search(r'DTSG.{,20}"token":"([^"]+)"', page.text).group(1),
-        "scripts": [*re.findall(r'"([^"]+rsrc\.php/[^"]+\.js[^"]+)"', page.text)],
+        "scripts": sorted(
+            set(re.findall(r'"([^"]+rsrc\.php/[^"]+\.js[^"]+)"', page.text))
+        ),
     }
 
 
 def get_script_data(session, chat_page_data):
+    def get(url):
+        log(f"[http] GET {url}")
+        return requests.get(url)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         loop = asyncio.get_event_loop()
         scripts = loop.run_until_complete(
             asyncio.gather(
                 *(
-                    loop.run_in_executor(executor, requests.get, url)
+                    loop.run_in_executor(executor, get, url)
                     for url in chat_page_data["scripts"]
                 )
             )
@@ -92,7 +114,7 @@ def node_to_literal(node):
     if node.type == "Literal":
         return node.value
     if node.type == "ArrayExpression":
-        return tuple(node_to_literal(elt) for elt in node.elements)
+        return [node_to_literal(elt) for elt in node.elements]
     if node.type == "Identifier" and node.name == "U":
         return None
     if node.type == "UnaryExpression" and node.prefix and node.operator == "-":
@@ -114,8 +136,10 @@ def read_lightspeed_call(node):
 
 
 def get_inbox_js(session, chat_page_data, script_data):
+    url = "https://www.messenger.com/api/graphql/"
+    log(f"[http] POST {url}")
     graph = session.post(
-        "https://www.messenger.com/api/graphql/",
+        url,
         data={
             "doc_id": script_data["query_id"],
             "fb_dtsg": chat_page_data["dtsg"],
@@ -139,6 +163,10 @@ def get_inbox_js(session, chat_page_data, script_data):
     return graph.json()["data"]["viewer"]["lightspeed_web_request"]["payload"]
 
 
+def convert_fbid(l):
+    return ":".join(map(str, l))
+
+
 def get_inbox_data(inbox_js):
     lightspeed_calls = collections.defaultdict(list)
 
@@ -156,24 +184,26 @@ def get_inbox_data(inbox_js):
     for args in lightspeed_calls["deleteThenInsertThread"]:
         last_sent_ts, last_read_ts, last_msg, group_name, *rest = args
         thread_id, last_msg_author = [
-            arg for arg in rest if isinstance(arg, tuple) and arg[0] > 0
+            arg for arg in rest if isinstance(arg, list) and arg[0] > 0
         ]
-        conversations[thread_id] = {
+        conversations[convert_fbid(thread_id)] = {
             "unread": last_sent_ts != last_read_ts,
             "last_message": last_msg,
             "last_message_author": last_msg_author,
             "group_name": group_name,
-            "participants": set(),
+            "participants": [],
         }
 
     for args in lightspeed_calls["addParticipantIdToGroupThread"]:
         thread_id, user_id, *rest = args
-        conversations[thread_id]["participants"].add(user_id)
+        conversations[convert_fbid(thread_id)]["participants"].append(
+            convert_fbid(user_id)
+        )
 
     for args in lightspeed_calls["verifyContactRowExists"]:
         user_id, _, _, name, *rest = args
         _, _, _, is_me = [arg for arg in rest if isinstance(arg, bool)]
-        users[user_id] = {"name": name, "is_me": is_me}
+        users[convert_fbid(user_id)] = {"name": name, "is_me": is_me}
 
     for user_id in users:
         if all(user_id in c["participants"] for c in conversations.values()):
@@ -196,29 +226,31 @@ def get_inbox_data(inbox_js):
 def do_main(credentials):
     with requests.session() as session:
         unauthenticated_page_data = get_unauthenticated_page_data(session)
-        print(unauthenticated_page_data)
+        log(json.dumps(unauthenticated_page_data, indent=2))
         do_login(session, unauthenticated_page_data, credentials)
-        print(dict(session.cookies))
+        log(json.dumps(dict(session.cookies), indent=2))
         chat_page_data = get_chat_page_data(session)
-        scripts = chat_page_data["scripts"]
-        print(
-            {
-                **chat_page_data,
-                "scripts": [scripts[0], f"... omitted {len(scripts) - 1} more ..."],
-            }
+        log(
+            json.dumps(
+                chat_page_data,
+                indent=2,
+            ),
         )
         script_data = get_script_data(session, chat_page_data)
-        print(script_data)
+        log(json.dumps(script_data, indent=2))
         inbox_js = get_inbox_js(session, chat_page_data, script_data)
         inbox_data = get_inbox_data(inbox_js)
-        print(inbox_data)
+        print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
 
 
 def main():
     parser = argparse.ArgumentParser("unzuckify")
     parser.add_argument("email")
     parser.add_argument("password")
+    parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+    if args.verbose:
+        global_config["verbose"] = True
     do_main({"email": args.email, "password": args.password})
 
 
