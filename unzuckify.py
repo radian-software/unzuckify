@@ -25,27 +25,57 @@ def get_cookies_path():
     return xdg.xdg_cache_home() / "unzuckify" / "cookies.json"
 
 
-def load_cookies(session):
+def load_cookies(session, email):
+    session.cookies.clear()
     try:
         with open(get_cookies_path()) as f:
-            session.cookies.clear()
-            session.cookies.update(json.load(f))
+            cookies = json.load(f).get(email)
     except FileNotFoundError:
         return False
+    except json.JSONDecodeError:
+        return False
+    if not cookies:
+        return False
+    session.cookies.update(cookies)
     return True
 
 
-def save_cookies(session):
+def save_cookies(session, email):
     path = get_cookies_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(dict(session.cookies), f)
+    with open(path, "a+") as f:
+        f.seek(0)
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
+        data[email] = dict(session.cookies)
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.write("\n")
 
 
-def clear_cookies(session):
+def clear_cookies(session, email):
     session.cookies.clear()
+    path = get_cookies_path()
     try:
-        get_cookies_path().unlink()
+        with open(path, "a+") as f:
+            f.seek(0)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+            try:
+                data.pop(email)
+            except KeyError:
+                pass
+            if not data:
+                path.unlink()
+            f.seek(0)
+            f.truncate()
+            json.dump(data, f, indent=2)
+            f.write("\n")
     except FileNotFoundError:
         pass
 
@@ -253,13 +283,13 @@ def get_inbox_data(inbox_js):
 def do_main(args):
     with requests.session() as session:
         chat_page_data = None
-        if load_cookies(session):
+        if load_cookies(session, args.email):
             log(f"[cookie] READ {get_cookies_path()}")
             log(json.dumps(dict(session.cookies), indent=2))
             chat_page_data = get_chat_page_data(session)
             if not chat_page_data:
                 log(f"[cookie] CLEAR due to failed auth")
-                clear_cookies(session)
+                clear_cookies(session, args.email)
         if not chat_page_data:
             unauthenticated_page_data = get_unauthenticated_page_data(session)
             log(json.dumps(unauthenticated_page_data, indent=2))
@@ -272,7 +302,7 @@ def do_main(args):
                 },
             )
             log(json.dumps(dict(session.cookies), indent=2))
-            save_cookies(session)
+            save_cookies(session, args.email)
             log(f"[cookie] WRITE {get_cookies_path()}")
             chat_page_data = get_chat_page_data(session)
             assert chat_page_data, "auth failed"
@@ -289,7 +319,8 @@ def do_main(args):
             inbox_data = get_inbox_data(inbox_js)
             print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
         elif args.cmd == "send":
-            print("send")
+            pass
+        elif args.cmd == "read":
             pass
         else:
             assert False, args.cmd
