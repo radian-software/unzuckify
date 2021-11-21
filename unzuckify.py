@@ -4,7 +4,9 @@ import argparse
 import asyncio
 import collections
 import concurrent.futures
+import datetime
 import json
+import random
 import re
 import sys
 
@@ -221,7 +223,7 @@ def get_inbox_js(session, chat_page_data, script_data):
 
 
 def convert_fbid(l):
-    return ":".join(map(str, l))
+    return (2 ** 32) * l[0] + l[1]
 
 
 def get_inbox_data(inbox_js):
@@ -246,7 +248,7 @@ def get_inbox_data(inbox_js):
         conversations[convert_fbid(thread_id)] = {
             "unread": last_sent_ts != last_read_ts,
             "last_message": last_msg,
-            "last_message_author": last_msg_author,
+            "last_message_author": convert_fbid(last_msg_author),
             "group_name": group_name,
             "participants": [],
         }
@@ -278,6 +280,69 @@ def get_inbox_data(inbox_js):
         "users": users,
         "conversations": conversations,
     }
+
+
+def interact_with_thread(session, chat_page_data, script_data, thread_id, message=None):
+    url = "https://www.messenger.com/api/graphql/"
+    log(f"[http] POST {url}")
+    timestamp = int(datetime.datetime.now().timestamp() * 1000)
+    epoch = timestamp << 22
+    tasks = [
+        {
+            "label": "21",
+            "payload": json.dumps(
+                {
+                    "thread_id": thread_id,
+                    "last_read_watermark_ts": timestamp,
+                    "sync_group": 1,
+                }
+            ),
+            "queue_name": str(thread_id),
+            "task_id": 1,
+        }
+    ]
+    if message:
+        otid = epoch + random.randrange(2 ** 22)
+        tasks.insert(
+            0,
+            {
+                "label": "46",
+                "payload": json.dumps(
+                    {
+                        "thread_id": thread_id,
+                        "otid": str(otid),
+                        "source": 0,
+                        "send_type": 1,
+                        "text": message,
+                        "initiating_source": 1,
+                    }
+                ),
+                "queue_name": str(thread_id),
+                "task_id": 0,
+            },
+        )
+    graph = session.post(
+        url,
+        data={
+            "doc_id": script_data["query_id"],
+            "fb_dtsg": chat_page_data["dtsg"],
+            "variables": json.dumps(
+                {
+                    "deviceId": chat_page_data["device_id"],
+                    "requestId": 0,
+                    "requestPayload": json.dumps(
+                        {
+                            "version_id": chat_page_data["schema_version"],
+                            "epoch_id": epoch,
+                            "tasks": tasks,
+                        }
+                    ),
+                    "requestType": 3,
+                }
+            ),
+        },
+    )
+    graph.raise_for_status()
 
 
 def do_main(args):
@@ -319,22 +384,32 @@ def do_main(args):
             inbox_data = get_inbox_data(inbox_js)
             print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
         elif args.cmd == "send":
-            pass
+            interact_with_thread(
+                session, chat_page_data, script_data, int(args.thread), args.message
+            )
         elif args.cmd == "read":
-            pass
+            interact_with_thread(
+                session,
+                chat_page_data,
+                script_data,
+                int(args.thread),
+            )
         else:
             assert False, args.cmd
 
 
 def main():
     parser = argparse.ArgumentParser("unzuckify")
-    parser.add_argument("-u", "--email")
-    parser.add_argument("-p", "--password")
+    parser.add_argument("-u", "--email", required=True)
+    parser.add_argument("-p", "--password", required=True)
     parser.add_argument("-v", "--verbose", action="store_true")
     subparsers = parser.add_subparsers(dest="cmd")
     cmd_inbox = subparsers.add_parser("inbox")
     cmd_send = subparsers.add_parser("send")
+    cmd_send.add_argument("-t", "--thread", required=True)
+    cmd_send.add_argument("-m", "--message", required=True)
     cmd_read = subparsers.add_parser("read")
+    cmd_read.add_argument("-t", "--thread", required=True)
     args = parser.parse_args()
     if args.verbose:
         global_config["verbose"] = True
