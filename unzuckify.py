@@ -282,7 +282,13 @@ def get_inbox_data(inbox_js):
     }
 
 
-def interact_with_thread(session, chat_page_data, script_data, thread_id, message=None):
+def interact_with_thread(
+    session,
+    chat_page_data,
+    script_data,
+    thread_id,
+    message=None,
+):
     url = "https://www.messenger.com/api/graphql/"
     log(f"[http] POST {url}")
     timestamp = int(datetime.datetime.now().timestamp() * 1000)
@@ -385,15 +391,11 @@ def do_main(args):
             print(json.dumps(inbox_data, indent=2 if sys.stdout.isatty() else None))
         elif args.cmd == "send":
             interact_with_thread(
-                session, chat_page_data, script_data, int(args.thread), args.message
+                session, chat_page_data, script_data, args.thread, args.message
             )
         elif args.cmd == "read":
-            interact_with_thread(
-                session,
-                chat_page_data,
-                script_data,
-                int(args.thread),
-            )
+            for thread_id in args.thread:
+                interact_with_thread(session, chat_page_data, script_data, thread_id)
         else:
             assert False, args.cmd
 
@@ -406,10 +408,10 @@ def main():
     subparsers = parser.add_subparsers(dest="cmd")
     cmd_inbox = subparsers.add_parser("inbox")
     cmd_send = subparsers.add_parser("send")
-    cmd_send.add_argument("-t", "--thread", required=True)
+    cmd_send.add_argument("-t", "--thread", required=True, type=int)
     cmd_send.add_argument("-m", "--message", required=True)
     cmd_read = subparsers.add_parser("read")
-    cmd_read.add_argument("-t", "--thread", required=True)
+    cmd_read.add_argument("-t", "--thread", required=True, type=int, action="append")
     args = parser.parse_args()
     if args.verbose:
         global_config["verbose"] = True
