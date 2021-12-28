@@ -244,7 +244,7 @@ def get_inbox_data(inbox_js):
         last_sent_ts, last_read_ts, last_msg, group_name, *rest = args
         thread_id, last_msg_author = [
             arg for arg in rest if isinstance(arg, list) and arg[0] > 0
-        ]
+        ][:2]
         conversations[convert_fbid(thread_id)] = {
             "unread": last_sent_ts != last_read_ts,
             "last_message": last_msg,
