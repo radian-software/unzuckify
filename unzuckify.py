@@ -131,8 +131,9 @@ def get_chat_page_data(session):
     page.raise_for_status()
     return {
         "device_id": re.search(r'"deviceId"\s*:\s*"([^"]+)"', page.text).group(1),
-        "schema_version": re.search(
-            r'"schemaVersion"\s*:\s*"([^"]+)"', page.text
+        "schema_version": (
+            re.search(r'"schemaVersion"\s*:\s*"([^"]+)"', page.text)
+            or re.search(r'\\"version\\":([0-9]{2,})', page.text)
         ).group(1),
         "dtsg": re.search(r'DTSG.{,20}"token":"([^"]+)"', page.text).group(1),
         "scripts": sorted(
