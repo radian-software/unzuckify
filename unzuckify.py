@@ -302,6 +302,9 @@ def interact_with_thread(
     thread_id,
     message=None,
 ):
+    schema_version = (
+        chat_page_data["maybe_schema_version"] or script_data["maybe_schema_version"]
+    )
     url = "https://www.messenger.com/api/graphql/"
     log(f"[http] POST {url}")
     timestamp = int(datetime.datetime.now().timestamp() * 1000)
@@ -351,7 +354,7 @@ def interact_with_thread(
                     "requestId": 0,
                     "requestPayload": json.dumps(
                         {
-                            "version_id": chat_page_data["schema_version"],
+                            "version_id": schema_version,
                             "epoch_id": epoch,
                             "tasks": tasks,
                         }
