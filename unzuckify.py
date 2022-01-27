@@ -129,14 +129,16 @@ def get_chat_page_data(session):
     log(f"[http] GET {url}")
     page = session.get(url)
     page.raise_for_status()
+    with open("/tmp/page.html", "w") as f:
+        f.write(page.text)
+    maybe_schema_match = re.search(
+        r'"schemaVersion"\s*:\s*"([^"]+)"', page.text
+    ) or re.search(r'\\"version\\":([0-9]{2,})', page.text)
     return {
         "device_id": re.search(
             r'"(?:deviceId|clientID)"\s*:\s*"([^"]+)"', page.text
         ).group(1),
-        "schema_version": (
-            re.search(r'"schemaVersion"\s*:\s*"([^"]+)"', page.text)
-            or re.search(r'\\"version\\":([0-9]{2,})', page.text)
-        ).group(1),
+        "maybe_schema_version": maybe_schema_match and maybe_schema_match.group(1),
         "dtsg": re.search(r'DTSG.{,20}"token":"([^"]+)"', page.text).group(1),
         "scripts": sorted(
             set(re.findall(r'"([^"]+rsrc\.php/[^"]+\.js[^"]+)"', page.text))
@@ -163,11 +165,15 @@ def get_script_data(session, chat_page_data):
         script.raise_for_status()
         if "LSPlatformGraphQLLightspeedRequestQuery" not in script.text:
             continue
+        maybe_schema_match = re.search(
+            r'__d\s*\(\s*"LSVersion".{,50}exports\s*=\s*"([0-9]+)"', script.text
+        )
         return {
             "query_id": re.search(
                 r'id:\s*"([0-9]+)".{,50}name:\s*"LSPlatformGraphQLLightspeedRequestQuery"',
                 script.text,
-            ).group(1)
+            ).group(1),
+            "maybe_schema_version": maybe_schema_match and maybe_schema_match.group(1),
         }
     assert False, "no script had LSPlatformGraphQLLightspeedRequestQuery"
 
@@ -200,6 +206,10 @@ def read_lightspeed_call(node):
 def get_inbox_js(session, chat_page_data, script_data):
     url = "https://www.messenger.com/api/graphql/"
     log(f"[http] POST {url}")
+    schema_version = (
+        chat_page_data["maybe_schema_version"] or script_data["maybe_schema_version"]
+    )
+    assert schema_version
     graph = session.post(
         url,
         data={
@@ -212,7 +222,7 @@ def get_inbox_js(session, chat_page_data, script_data):
                     "requestPayload": json.dumps(
                         {
                             "database": 1,
-                            "version": chat_page_data["schema_version"],
+                            "version": schema_version,
                             "sync_params": json.dumps({}),
                         }
                     ),
