@@ -2,7 +2,7 @@
 name = "unzuckify"
 version = "0.1.0"
 description = "Helps remove Daddy Zuck from my life"
-authors = ["Radon Rosborough <radon.neon@gmail.com>"]
+authors = ["Radian LLC <contact+unzuckify@radian.codes>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"

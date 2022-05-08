@@ -60,13 +60,13 @@ Man's Snitch will stop receiving notifications.
 ## Prior work
 
 I previously used [Messenger
-Mirror](https://github.com/raxod502/messenger-mirror) to accomplish
-the same thing as this project. However, because Messenger Mirror
-relied on having an entire Chrome instance running in Selenium 24/7, I
-didn't want to have that running on my laptop (it would eat resources
-for no good reason). Unfortunately, after a couple weeks, Facebook
-banned the IP for my VPS, so I couldn't run the application there
-anymore. This is what inspired me to try reverse engineering the
+Mirror](https://github.com/radian-software/messenger-mirror) to
+accomplish the same thing as this project. However, because Messenger
+Mirror relied on having an entire Chrome instance running in Selenium
+24/7, I didn't want to have that running on my laptop (it would eat
+resources for no good reason). Unfortunately, after a couple weeks,
+Facebook banned the IP for my VPS, so I couldn't run the application
+there anymore. This is what inspired me to try reverse engineering the
 browser API directly, since if I did that, it would be far less
 resource intensive to run the application on my laptop in the
 background.
@@ -110,8 +110,8 @@ SENDGRID_API_KEY=SG.REDACTED  # from SendGrid
 SENTINEL_EMAIL=some-hash@nosnch.in  # from Dead Man's Snitch
 SENTINEL_NAME='John Smith'  # Facebook name of 2nd account
 
-FROM_EMAIL=radon@intuitiveexplanations.com  # SendGrid verified sender
-TO_EMAIL=radon.neon@gmail.com  # where to receive notifications
+FROM_EMAIL=you@example.com  # SendGrid verified sender
+TO_EMAIL=you@example.com  # where to receive notifications
 ```
 
 Note for `FROM_EMAIL`, ideally you own a domain and can prove
