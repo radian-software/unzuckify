@@ -118,16 +118,10 @@ def do_login(session, unauthenticated_page_data, credentials):
 def get_chat_page_data(session):
     url = "https://www.messenger.com"
     log(f"[http] GET {url}")
-    redirect = session.get(
+    page = session.get(
         url,
-        allow_redirects=False,
+        allow_redirects=True,
     )
-    redirect.raise_for_status()
-    if redirect.status_code not in (301, 302):
-        return None
-    url = redirect.headers["Location"]
-    log(f"[http] GET {url}")
-    page = session.get(url)
     page.raise_for_status()
     with open("/tmp/page.html", "w") as f:
         f.write(page.text)
