@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import asyncio
 import collections
 import concurrent.futures
 import datetime
@@ -146,15 +145,7 @@ def get_script_data(session, chat_page_data):
         return requests.get(url)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        loop = asyncio.get_event_loop()
-        scripts = loop.run_until_complete(
-            asyncio.gather(
-                *(
-                    loop.run_in_executor(executor, get, url)
-                    for url in chat_page_data["scripts"]
-                )
-            )
-        )
+        scripts = executor.map(get, chat_page_data["scripts"])
     for script in scripts:
         script.raise_for_status()
         if "LSPlatformGraphQLLightspeedRequestQuery" not in script.text:
