@@ -355,7 +355,7 @@ def interact_with_thread(
 def do_main(args):
     with requests.session() as session:
         chat_page_data = None
-        if load_cookies(session, args.email):
+        if not args.no_cookies and load_cookies(session, args.email):
             log(f"[cookie] READ {get_cookies_path()}")
             log(json.dumps(dict(session.cookies), indent=2))
             chat_page_data = get_chat_page_data(session)
@@ -406,6 +406,7 @@ def main():
     parser.add_argument("-u", "--email", required=True)
     parser.add_argument("-p", "--password", required=True)
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-n", "--no-cookies", action="store_true")
     subparsers = parser.add_subparsers(dest="cmd")
     cmd_inbox = subparsers.add_parser("inbox")
     cmd_send = subparsers.add_parser("send")

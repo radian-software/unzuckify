@@ -30,7 +30,7 @@ function unzuckify {
     "${SCRIPT_DIR}/unzuckify.py" "$@"
 }
 
-inbox="$(unzuckify -u "${PRIMARY_EMAIL}" -p "${PRIMARY_PASSWORD}" inbox)"
+inbox="$(unzuckify -u "${PRIMARY_EMAIL}" -p "${PRIMARY_PASSWORD}" -n inbox)"
 
 read -r -d "" sendgrid_request_template <<"EOF" || :
 {
@@ -102,5 +102,5 @@ fi
 
 inspirational_quote="$(curl -s https://zenquotes.io/api/random | jq '.[0].q' -r)"
 
-unzuckify -u "${SECONDARY_EMAIL}" -p "${SECONDARY_PASSWORD}" send \
+unzuckify -u "${SECONDARY_EMAIL}" -p "${SECONDARY_PASSWORD}" -n send \
           -t "${my_user_id}" -m "Your inspirational quote of the day: \"${inspirational_quote}\""
