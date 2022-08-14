@@ -4,6 +4,19 @@ This repository has a small Python application which allows me to
 receive an email notification when somebody sends me a Facebook
 message.
 
+This is a pretty tiny application and custom-designed for a specific
+use case. If you're interested in something more general, you might
+want to also take a look at these resources:
+
+* [My blog post on how I reverse-engineered the
+  API](https://intuitiveexplanations.com/tech/messenger)
+* [Scott Conway's fork, providing the ~same features with more
+  configuration options](https://github.com/scottmconway/unzuckify)
+
+At the time when I created this project I was unable to find anyone
+else online who had reverse-engineered the new (circa 2020) Messenger
+API, but I'm sure others have since popped up or will soon.
+
 ## Why?
 
 I don't like Facebook as a company, and I don't want to support them
