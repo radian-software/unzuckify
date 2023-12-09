@@ -17,6 +17,15 @@ At the time when I created this project I was unable to find anyone
 else online who had reverse-engineered the new (circa 2020) Messenger
 API, but I'm sure others have since popped up or will soon.
 
+**Note: this code is not actively maintained, as I no longer actively
+use the application. As a result, you shouldn't expect it to work
+exactly as listed, because Facebook regularly changes their APIs to
+break third-party clients (amongst other reasons). While I may be able
+to offer some tips here and there, I can't promise formal support for
+this project in the same way that other open-source projects under
+Radian LLC receive. You're welcome to fork the project and bring it up
+to date with the latest Facebook changes if you wish to use it.**
+
 ## Why?
 
 I don't like Facebook as a company, and I don't want to support them
